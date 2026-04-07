@@ -1,30 +1,74 @@
+print("start main.py")
 from fastapi import FastAPI
+print("imported FastAPI")
 from pydantic import BaseModel
+print("imported BaseModel")
 from fastapi import UploadFile, File, HTTPException, Body,Query
+print("imported fastapi request helpers")
 from pathlib import Path
+print("imported Path")
 import httpx
+print("imported httpx")
 import json
+print("imported json")
 from app.services.ingest import (
     load_text_from_txt,
     load_text_from_pdf,
     chunk_text_by_paragraphs,
     create_chunk_records,
 )
+print("imported ingest")
 
 from app.services.embed_service import retrieve_chunks,embed_new_nodes,rag_chat
+print("imported embed_service")
 BASE_DIR = Path(__file__).resolve().parent.parent
 UPLOAD_DIR = BASE_DIR / "data" / "uploads"
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 STORAGE_DIR = BASE_DIR / "storage"
 STORAGE_DIR.mkdir(parents=True, exist_ok=True)
 CHUNKS_FILE = STORAGE_DIR / "chunks.jsonl"
+USERS_FILE=STORAGE_DIR/"users.json"
+
+from fastapi import UploadFile,File,HTTPException,Body,Query,Request
 
 app = FastAPI()
+print("created app")
 from fastapi.middleware.cors import CORSMiddleware
-from llama_index.core import Settings
-from llama_index.embeddings.ollama import OllamaEmbedding
+print("imported CORS")
 
-Settings.embed_model = OllamaEmbedding(model_name="nomic-embed-text")
+class LoginRequest(BaseModel):
+    username:str
+    password:str
+
+def load_users()->list[dict]:
+    if not USERS_FILE.exists():
+        raise HTTPException(status_code=500,detail="users.json not found")
+    data=json.loads(USERS_FILE.read_text(encoding="utf-8"))
+    return data.get("users",[])
+
+def authenticate_user(username:str,password:str)->dict|None:
+    users=load_users()
+    for user in users:
+        if user.get("username")==username and user.get("password")==password:
+            return user
+    return None
+
+@app.post("/login")
+def login(payload:LoginRequest):
+    user=authenticate_user(payload.username,payload.password)
+    if not user:
+        raise HTTPException(status_code=401,detail="Invalid username or password")
+    return {
+        "username":user["username"],
+        "role":user["role"],
+        "message":"Login successful"
+    }
+
+def get_current_user(request:Request)->str:
+    user=(request.headers.get("X-User") or "").strip()
+    if not user:
+        raise HTTPException(status_code=401,detail="Missing X-User header")
+    return user
  
 app.add_middleware(
     CORSMiddleware,
@@ -33,6 +77,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+print("added CORS")
 @app.get("/health")
 def health_check():
     return {"status": "OK"}
@@ -44,7 +89,8 @@ OLLAMA_BASE = "http://localhost:11434"
 OLLAMA_MODEL = "llama3:8b"
 
 @app.post("/chat")
-async def chat(payload: dict = Body(...)):
+async def chat(request:Request, payload: dict = Body(...)):
+    user=get_current_user(request)
     user_message = (payload.get("message") or "").strip()
     top_k = int(payload.get("top_k", 5))
 
@@ -52,7 +98,7 @@ async def chat(payload: dict = Body(...)):
         return {"reply": "", "sources": []}
 
     try:
-        out = rag_chat(user_message, top_k=top_k)
+        out = rag_chat(user_message, owner=user, top_k=top_k)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -90,7 +136,8 @@ def unique_path(directory: Path, filename: str) -> Path:
         counter+=1
 
 @app.post("/upload")
-async def upload(file: UploadFile = File(...)):
+async def upload(request:Request, file: UploadFile = File(...)):
+    user=get_current_user(request)
     ext=Path(file.filename).suffix.lower()
     if ext not in {".txt",".pdf"}:
         raise HTTPException(status_code=400,detail="Only .txt and .pdf allowed")
@@ -109,7 +156,7 @@ async def upload(file: UploadFile = File(...)):
         raise HTTPException(status_code=400,detail="Could not extract text from this file")
 
     chunks=chunk_text_by_paragraphs(text)
-    records=create_chunk_records(chunks,str(save_path))
+    records=create_chunk_records(chunks,str(save_path),user)
     STORAGE_DIR.mkdir(parents=True, exist_ok=True)
 
     with CHUNKS_FILE.open("a", encoding="utf-8") as f:
@@ -120,17 +167,18 @@ async def upload(file: UploadFile = File(...)):
     "saved": True,
     "filename": save_path.name,
     "chunks_added": len(records),
-    "embedded_now": 0,
-    "message": "Indexing started",
+    "embedded_now":embed_stats.get("embedded_now",0),
+    "message":embed_stats.get("message","Indexing started"),
 }
 
 @app.get("/retrieve")
-def retrieve(
+def retrieve(request:Request,
     q: str = Query(..., min_length=1),
     top_k: int = Query(5, ge=1, le=20),
 ):
+    user=get_current_user(request)
     try:
-        hits = retrieve_chunks(q, top_k=top_k)
+        hits = retrieve_chunks(q, owner=user, top_k=top_k)
         return {"query": q, "top_k": top_k, "hits": hits}
     except FileNotFoundError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -140,6 +188,4 @@ def retrieve(
 @app.post("/embed")
 def embed():
     return embed_new_nodes()
-
-
 

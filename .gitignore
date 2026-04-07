@@ -2,3 +2,16 @@
 # Python bytecode / caches
 __pycache__/
 *.pyc
+
+# Local Python environment
+Backend/.venv/
+
+# Frontend dependencies
+Frontend/node_modules/
+
+# macOS metadata
+.DS_Store
+
+# Local generated storage and uploads
+Backend/storage/index/
+Backend/data/uploads/

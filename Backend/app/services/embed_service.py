@@ -1,11 +1,21 @@
+
 from __future__ import annotations
+print("start embed_service")
+print("future done")
 import hashlib
+print("hashlib done")
 import json
+print("json done")
 from pathlib import Path
-from llama_index.core.schema import TextNode
-from llama_index.core import Settings,StorageContext,load_index_from_storage,VectorStoreIndex
-from llama_index.embeddings.ollama import OllamaEmbedding
+print("pathlib done")
+# from llama_index.core.schema import TextNode
+# print("TextNode done")
+# from llama_index.core import Settings,StorageContext,load_index_from_storage,VectorStoreIndex
+# print("llama_index.core done")
+# from llama_index.embeddings.ollama import OllamaEmbedding
+# print("OllamaEmbedding done")
 import httpx
+print("httpx done")
 
 BASE_DIR = Path(__file__).resolve().parents[2]
 STORAGE_DIR = BASE_DIR / "storage"
@@ -35,7 +45,8 @@ def save_embedded_ids(ids: set[str]) -> None:
     data={"embedded_ids": sorted(ids)}
     path.write_text(json.dumps(data, indent=2), encoding="utf-8")
 
-def collect_new_nodes() -> tuple[list[TextNode], set[str], dict]:
+def collect_new_nodes() -> tuple[list["TextNode"], set[str], dict]:
+    from llama_index.core.schema import TextNode
     embedded=load_embedded_ids()
     chunks_path=Path(CHUNKS_PATH)
     if not chunks_path.exists():
@@ -54,6 +65,7 @@ def collect_new_nodes() -> tuple[list[TextNode], set[str], dict]:
             record=json.loads(line)
             doc_id=(record.get("doc_id") or "").strip()
             text=(record.get("text") or "").strip()
+            owner=(record.get("owner") or "").strip()
             if not text:
                 continue
             chunk_id=make_chunk_id(doc_id, text)
@@ -66,6 +78,7 @@ def collect_new_nodes() -> tuple[list[TextNode], set[str], dict]:
                     "doc_id":doc_id,
                     "chunk_id":chunk_id,
                     "source":(record.get("source") or doc_id),
+                    "owner":owner,
                 },
             )
             new_nodes.append(node)
@@ -74,6 +87,8 @@ def collect_new_nodes() -> tuple[list[TextNode], set[str], dict]:
     return new_nodes, new_ids, stats
 
 def embed_new_nodes() -> dict:
+    from llama_index.core import Settings, StorageContext, load_index_from_storage, VectorStoreIndex
+    from llama_index.embeddings.ollama import OllamaEmbedding
     Settings.embed_model=OllamaEmbedding(model_name="nomic-embed-text")
     new_nodes, new_ids, stats=collect_new_nodes()
     if not new_nodes:
@@ -95,7 +110,9 @@ def embed_new_nodes() -> dict:
 
     return {**stats, "embedded_now": len(new_nodes), "message": "Embedded and persisted successfully."}
 
-def retrieve_chunks(query:str, top_k:int=5)->list[dict]:
+def retrieve_chunks(query:str, owner:str, top_k:int=5)->list[dict]:
+    from llama_index.core import Settings, StorageContext, load_index_from_storage
+    from llama_index.embeddings.ollama import OllamaEmbedding
     Settings.embed_model = OllamaEmbedding(model_name="nomic-embed-text")
     index_dir=Path(INDEX_DIR)
     if not index_dir.exists() or not any(index_dir.iterdir()):
@@ -104,19 +121,26 @@ def retrieve_chunks(query:str, top_k:int=5)->list[dict]:
         )
     storage_context=StorageContext.from_defaults(persist_dir=str(index_dir))
     index=load_index_from_storage(storage_context)
-    retriever=index.as_retriever(similarity_top_k=top_k)
+    candidate_k=max(top_k*4,20)
+    retriever=index.as_retriever(similarity_top_k=candidate_k)
     results=retriever.retrieve(query)
     out:list[dict]=[]
     for r in results:
         node=r.node
+        node_owner=(node.metadata.get("owner") or "").strip()
+        if node_owner!=owner:
+            continue
         out.append(
             {
                 "score":float(getattr(r, "score", 0.0)),
                 "doc_id":node.metadata.get("doc_id"),
                 "chunk_id":node.metadata.get("chunk_id"),
+                "owner":node_owner,
                 "text":node.get_content(),
             }
         )
+        if len(out)>=top_k:
+            break
     return out
 
 def ollama_generate(model: str, prompt: str) -> str:
@@ -126,8 +150,8 @@ def ollama_generate(model: str, prompt: str) -> str:
     r.raise_for_status()
     return r.json().get("response", "").strip()
 
-def rag_chat(question: str, top_k: int = 5) -> dict:
-    hits = retrieve_chunks(question, top_k=top_k)
+def rag_chat(question: str, owner:str, top_k: int = 5) -> dict:
+    hits = retrieve_chunks(question, owner=owner, top_k=top_k)
 
     sources = [
         {

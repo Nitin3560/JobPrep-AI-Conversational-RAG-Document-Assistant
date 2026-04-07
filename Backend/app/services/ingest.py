@@ -54,14 +54,15 @@ def chunk_text_by_paragraphs(text:str, max_chars: int =1200, overlap: int =200)-
     print(len(final_chunks))
     return final_chunks
 
-def create_chunk_records(final_chunks: list[str], source_file: str) -> list[dict]:
+def create_chunk_records(final_chunks: list[str], source_file: str, owner:str) -> list[dict]:
     records = []
     for i, chunk in enumerate(final_chunks):
         record = {
             "doc_id": f"{source_file}",
             "text": chunk,
             "source": source_file,
-            "chunk_id": i
+            "chunk_id": i,
+            "owner": owner
         }
         records.append(record)
     return records

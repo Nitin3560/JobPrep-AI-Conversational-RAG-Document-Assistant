@@ -1,0 +1,15 @@
+{
+    "users":[
+      {
+        "username":"nitin",
+        "password":"1234",
+        "role":"user"
+      },
+      {
+        "username":"shiv",
+        "password":"1234",
+        "role":"user"
+      }
+    ]
+  }
+  
