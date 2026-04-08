@@ -1,4 +1,4 @@
-# Job Application Helper – AI-Powered RAG System
+# JobPrep-AI-Conversational-RAG-Document-Assistant
 
 ## Demo
 
