@@ -10,8 +10,9 @@ function App(){
   const[currentUser,setCurrentUser]=useState("");
   const[loginError,setLoginError]=useState("");
   const[loginPopup,setLoginPopup]=useState("");
+  const[jobDescription,setJobDescription]=useState("");
   const[messages,setMessages]=useState([
-    {role:"assistant",content:"Hello !!"},
+    {role:"assistant",content:"Paste the job description you want to prepare for, then ask your job application questions."},
   ]);
   const[input,setInput]=useState("");
   const[sending,setSending]=useState(false);
@@ -54,8 +55,18 @@ function App(){
     const text=input.trim();
     if(!text||sending||!currentUser)return;
     setInput("");
-    setSending(true)
     setMessages((prev)=>[...prev,{role:"user",content:text}]);
+
+    if(!jobDescription){
+      setJobDescription(text);
+      setMessages((prev)=>[
+        ...prev,
+        {role:"assistant",content:"Got it. Now ask your job application questions."},
+      ]);
+      return;
+    }
+
+    setSending(true)
 
     try{
       const res=await fetch(`${API_BASE}/chat`,{
@@ -64,7 +75,7 @@ function App(){
           "Content-Type":"application/json",
           "X-User":currentUser,
         },
-        body: JSON.stringify({ message: text }),
+        body: JSON.stringify({ message: text, job_description: jobDescription }),
       });
       if(!res.ok){
         const t=await res.text();
@@ -91,12 +102,13 @@ function App(){
     setCurrentUser("");
     setUsername("");
     setPassword("");
+    setJobDescription("");
     setLoginError("");
     setLoginPopup("");
     setInput("");
     setStatus("");
     setMessages([
-      {role:"assistant",content:"Hello !!"},
+      {role:"assistant",content:"Paste the job description you want to prepare for, then ask your job application questions."},
     ]);
   };
   const endRef=useRef(null);

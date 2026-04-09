@@ -150,7 +150,7 @@ def ollama_generate(model: str, prompt: str) -> str:
     r.raise_for_status()
     return r.json().get("response", "").strip()
 
-def rag_chat(question: str, owner:str, top_k: int = 5) -> dict:
+def rag_chat(question: str, owner:str, job_description:str="", top_k: int = 5) -> dict:
     hits = retrieve_chunks(question, owner=owner, top_k=top_k)
 
     sources = [
@@ -171,6 +171,7 @@ def rag_chat(question: str, owner:str, top_k: int = 5) -> dict:
     "You are Job Application Helper.\n"
     "You help the user with resumes, job descriptions, cover letters, interview prep, and career questions.\n"
     "You must use the provided CONTEXT as your primary source of truth.\n"
+    "Use the active job description to tailor your answer whenever it is relevant.\n"
     "If the answer is not in the context, you may use general knowledge, but clearly separate it as 'General guidance'.\n"
     "Never mention 'sources', 'chunks', 'documents', or 'context' in your answer.\n"
     "Never say 'Based on the sources provided'.\n"
@@ -181,12 +182,15 @@ def rag_chat(question: str, owner:str, top_k: int = 5) -> dict:
 
     prompt = (
     f"{system}\n\n"
+    f"ACTIVE JOB DESCRIPTION:\n{job_description or 'None'}\n\n"
     f"CONTEXT (from the user's uploaded files):\n{context}\n\n"
     f"USER MESSAGE:\n{question}\n\n"
     "INSTRUCTIONS:\n"
     "1) First answer the user directly.\n"
-    "2) If you need details that are missing, ask at most ONE short follow-up question.\n"
-    "3) If the user asked for a rewrite (resume bullet, cover letter, etc.), output the rewritten text.\n\n"
+    "2) If an active job description is available, tailor the answer to that role.\n"
+    "3) If the user asks about fit, projects, resume bullets, or interview responses, connect the answer to the active job description.\n"
+    "4) If you need details that are missing, ask at most ONE short follow-up question.\n"
+    "5) If the user asked for a rewrite (resume bullet, cover letter, etc.), output the rewritten text.\n\n"
     "ANSWER:\n"
     )
 

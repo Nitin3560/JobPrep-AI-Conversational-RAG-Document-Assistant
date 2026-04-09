@@ -110,13 +110,14 @@ OLLAMA_MODEL = "llama3:8b"
 async def chat(request:Request, payload: dict = Body(...)):
     user=get_current_user(request)
     user_message = (payload.get("message") or "").strip()
+    job_description = (payload.get("job_description") or "").strip()
     top_k = int(payload.get("top_k", 5))
 
     if not user_message:
         return {"reply": "", "sources": []}
 
     try:
-        out = rag_chat(user_message, owner=user, top_k=top_k)
+        out = rag_chat(user_message, owner=user, job_description=job_description, top_k=top_k)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
