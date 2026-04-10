@@ -179,6 +179,8 @@ def rag_chat(question: str, owner:str, job_description:str="", top_k: int = 3) -
     "You must use the provided CONTEXT as your primary source of truth.\n"
     "Use the active job description to tailor your answer whenever it is relevant.\n"
     "If the answer is not in the context, you may use general knowledge, but clearly separate it as 'General guidance'.\n"
+    "Do not invent user-specific experience, projects, skills, achievements, or results that are not supported by the context.\n"
+    "If important user-specific details are missing, ask a short follow-up instead of assuming.\n"
     "Never mention 'sources', 'chunks', 'documents', or 'context' in your answer.\n"
     "Never say 'Based on the sources provided'.\n"
     "Be direct and practical. Prefer short bullet points when helpful.\n"
@@ -201,7 +203,7 @@ def rag_chat(question: str, owner:str, job_description:str="", top_k: int = 3) -
     "ANSWER:\n"
     )
 
-    answer = ollama_generate(model="llama3:8b", prompt=prompt)
+    answer = ollama_generate(model="qwen2.5:3b", prompt=prompt)
 
     return {
         "question": question,
