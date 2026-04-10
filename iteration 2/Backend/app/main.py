@@ -3,7 +3,7 @@ from fastapi import FastAPI
 print("imported FastAPI")
 from pydantic import BaseModel
 print("imported BaseModel")
-from fastapi import UploadFile, File, HTTPException, Body,Query
+from fastapi import UploadFile, File, HTTPException, Body,Query,BackgroundTasks
 print("imported fastapi request helpers")
 from pathlib import Path
 print("imported Path")
@@ -29,7 +29,7 @@ STORAGE_DIR.mkdir(parents=True, exist_ok=True)
 CHUNKS_FILE = STORAGE_DIR / "chunks.jsonl"
 USERS_FILE=STORAGE_DIR/"users.json"
 
-from fastapi import UploadFile,File,HTTPException,Body,Query,Request
+from fastapi import UploadFile,File,HTTPException,Body,Query,Request,BackgroundTasks
 
 app = FastAPI()
 print("created app")
@@ -155,7 +155,7 @@ def unique_path(directory: Path, filename: str) -> Path:
         counter+=1
 
 @app.post("/upload")
-async def upload(request:Request, file: UploadFile = File(...)):
+async def upload(request:Request, background_tasks:BackgroundTasks, file: UploadFile = File(...)):
     user=get_current_user(request)
     ext=Path(file.filename).suffix.lower()
     if ext not in {".txt",".pdf"}:
@@ -181,13 +181,13 @@ async def upload(request:Request, file: UploadFile = File(...)):
     with CHUNKS_FILE.open("a", encoding="utf-8") as f:
         for r in records:
             f.write(json.dumps(r,ensure_ascii=False)+"\n")
-    embed_stats = embed_new_nodes()
+    background_tasks.add_task(embed_new_nodes)
     return {
     "saved": True,
     "filename": save_path.name,
     "chunks_added": len(records),
-    "embedded_now":embed_stats.get("embedded_now",0),
-    "message":embed_stats.get("message","Indexing started"),
+    "embedded_now":0,
+    "message":"Upload saved. Embedding started.",
 }
 
 @app.get("/retrieve")

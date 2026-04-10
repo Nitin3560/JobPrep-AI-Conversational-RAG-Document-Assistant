@@ -23,7 +23,7 @@ def load_text_from_pdf(file_path:str)->str:
         text=text.replace("\n\n\n","\n\n")
     return text.strip()
 
-def chunk_text_by_paragraphs(text:str, max_chars: int =1200, overlap: int =200)-> list[str]:
+def chunk_text_by_paragraphs(text:str, max_chars: int =700, overlap: int =100)-> list[str]:
     paragraphs=[]
     chunks=[]
     paragraphs = text.split("\n\n")
@@ -91,4 +91,3 @@ def write_index_summary(summary_path, summary_dict):
     with open(summary_path, 'w', encoding='utf-8') as f:
         json_text = json.dumps(summary_dict, indent=2, ensure_ascii=False)
         f.write(json_text)
-

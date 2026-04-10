@@ -30,6 +30,10 @@ def trim_text(text:str, limit:int)->str:
         return text
     return text[:limit].rsplit(" ",1)[0].strip()+"..."
 
+def is_simple_greeting(text:str)->bool:
+    text=(text or "").strip().lower()
+    return text in {"hi","hello","hey","hy","hii","yo"}
+
 def make_chunk_id(doc_id: str, text: str) -> str:
     doc_id=(doc_id or "").strip()
     text=(text or "").strip()
@@ -157,6 +161,14 @@ def ollama_generate(model: str, prompt: str) -> str:
     return r.json().get("response", "").strip()
 
 def rag_chat(question: str, owner:str, job_description:str="", top_k: int = 3) -> dict:
+    if is_simple_greeting(question):
+        return {
+            "question": question,
+            "top_k": 0,
+            "answer": "Hi! Paste the job description you want to prepare for, then ask your job application questions.",
+            "sources": [],
+        }
+
     hits = retrieve_chunks(question, owner=owner, top_k=top_k)
 
     sources = [
@@ -171,35 +183,26 @@ def rag_chat(question: str, owner:str, job_description:str="", top_k: int = 3) -
     ]
 
     sources_block = "\n\n".join(
-        f"[{s['chunk_id']}] (doc: {s['doc_id']})\n{trim_text(s['text'], 900)}" for s in sources
+        f"[{s['chunk_id']}] {trim_text(s['snippet'], 180)}" for s in sources
     )
     system = (
     "You are Job Application Helper.\n"
-    "You help the user with resumes, job descriptions, cover letters, interview prep, and career questions.\n"
-    "You must use the provided CONTEXT as your primary source of truth.\n"
-    "Use the active job description to tailor your answer whenever it is relevant.\n"
-    "If the answer is not in the context, you may use general knowledge, but clearly separate it as 'General guidance'.\n"
+    "Use the uploaded user material as the main source of truth.\n"
+    "Use the active job description to tailor the answer when relevant.\n"
     "Do not invent user-specific experience, projects, skills, achievements, or results that are not supported by the context.\n"
     "If important user-specific details are missing, ask a short follow-up instead of assuming.\n"
-    "Never mention 'sources', 'chunks', 'documents', or 'context' in your answer.\n"
-    "Never say 'Based on the sources provided'.\n"
     "Be direct and practical. Prefer short bullet points when helpful.\n"
     )
 
     context = sources_block
-    active_job_description = trim_text(job_description, 2500) if job_description else "None"
+    active_job_description = trim_text(job_description, 1200) if job_description else "None"
 
     prompt = (
     f"{system}\n\n"
-    f"ACTIVE JOB DESCRIPTION:\n{active_job_description}\n\n"
-    f"CONTEXT (from the user's uploaded files):\n{context}\n\n"
-    f"USER MESSAGE:\n{question}\n\n"
-    "INSTRUCTIONS:\n"
-    "1) First answer the user directly.\n"
-    "2) If an active job description is available, tailor the answer to that role.\n"
-    "3) If the user asks about fit, projects, resume bullets, or interview responses, connect the answer to the active job description.\n"
-    "4) If you need details that are missing, ask at most ONE short follow-up question.\n"
-    "5) If the user asked for a rewrite (resume bullet, cover letter, etc.), output the rewritten text.\n\n"
+    f"JOB DESCRIPTION:\n{active_job_description}\n\n"
+    f"USER MATERIAL:\n{context or 'None'}\n\n"
+    f"QUESTION:\n{question}\n\n"
+    "Answer directly. If details are missing, ask one short follow-up.\n\n"
     "ANSWER:\n"
     )
 
