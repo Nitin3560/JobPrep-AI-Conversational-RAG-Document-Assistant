@@ -111,7 +111,7 @@ async def chat(request:Request, payload: dict = Body(...)):
     user=get_current_user(request)
     user_message = (payload.get("message") or "").strip()
     job_description = (payload.get("job_description") or "").strip()
-    top_k = int(payload.get("top_k", 5))
+    top_k = int(payload.get("top_k", 3))
 
     if not user_message:
         return {"reply": "", "sources": []}
@@ -193,7 +193,7 @@ async def upload(request:Request, file: UploadFile = File(...)):
 @app.get("/retrieve")
 def retrieve(request:Request,
     q: str = Query(..., min_length=1),
-    top_k: int = Query(5, ge=1, le=20),
+    top_k: int = Query(3, ge=1, le=20),
 ):
     user=get_current_user(request)
     try:

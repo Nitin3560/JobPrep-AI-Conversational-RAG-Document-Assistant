@@ -24,6 +24,12 @@ EMBEDDED_IDS_PATH = STORAGE_DIR / "embedded_ids.json"
 INDEX_DIR = STORAGE_DIR / "index"
 
 
+def trim_text(text:str, limit:int)->str:
+    text=(text or "").strip()
+    if len(text)<=limit:
+        return text
+    return text[:limit].rsplit(" ",1)[0].strip()+"..."
+
 def make_chunk_id(doc_id: str, text: str) -> str:
     doc_id=(doc_id or "").strip()
     text=(text or "").strip()
@@ -110,7 +116,7 @@ def embed_new_nodes() -> dict:
 
     return {**stats, "embedded_now": len(new_nodes), "message": "Embedded and persisted successfully."}
 
-def retrieve_chunks(query:str, owner:str, top_k:int=5)->list[dict]:
+def retrieve_chunks(query:str, owner:str, top_k:int=3)->list[dict]:
     from llama_index.core import Settings, StorageContext, load_index_from_storage
     from llama_index.embeddings.ollama import OllamaEmbedding
     Settings.embed_model = OllamaEmbedding(model_name="nomic-embed-text")
@@ -121,7 +127,7 @@ def retrieve_chunks(query:str, owner:str, top_k:int=5)->list[dict]:
         )
     storage_context=StorageContext.from_defaults(persist_dir=str(index_dir))
     index=load_index_from_storage(storage_context)
-    candidate_k=max(top_k*4,20)
+    candidate_k=max(top_k*3,12)
     retriever=index.as_retriever(similarity_top_k=candidate_k)
     results=retriever.retrieve(query)
     out:list[dict]=[]
@@ -146,11 +152,11 @@ def retrieve_chunks(query:str, owner:str, top_k:int=5)->list[dict]:
 def ollama_generate(model: str, prompt: str) -> str:
     url="http://localhost:11434/api/generate"
     payload={"model": model, "prompt": prompt, "stream": False}
-    r=httpx.post(url, json=payload, timeout=180)
+    r=httpx.post(url, json=payload, timeout=240)
     r.raise_for_status()
     return r.json().get("response", "").strip()
 
-def rag_chat(question: str, owner:str, job_description:str="", top_k: int = 5) -> dict:
+def rag_chat(question: str, owner:str, job_description:str="", top_k: int = 3) -> dict:
     hits = retrieve_chunks(question, owner=owner, top_k=top_k)
 
     sources = [
@@ -165,7 +171,7 @@ def rag_chat(question: str, owner:str, job_description:str="", top_k: int = 5) -
     ]
 
     sources_block = "\n\n".join(
-        f"[{s['chunk_id']}] (doc: {s['doc_id']})\n{s['text']}" for s in sources
+        f"[{s['chunk_id']}] (doc: {s['doc_id']})\n{trim_text(s['text'], 900)}" for s in sources
     )
     system = (
     "You are Job Application Helper.\n"
@@ -178,11 +184,12 @@ def rag_chat(question: str, owner:str, job_description:str="", top_k: int = 5) -
     "Be direct and practical. Prefer short bullet points when helpful.\n"
     )
 
-    context = sources_block  
+    context = sources_block
+    active_job_description = trim_text(job_description, 2500) if job_description else "None"
 
     prompt = (
     f"{system}\n\n"
-    f"ACTIVE JOB DESCRIPTION:\n{job_description or 'None'}\n\n"
+    f"ACTIVE JOB DESCRIPTION:\n{active_job_description}\n\n"
     f"CONTEXT (from the user's uploaded files):\n{context}\n\n"
     f"USER MESSAGE:\n{question}\n\n"
     "INSTRUCTIONS:\n"
