@@ -21,7 +21,7 @@ The problem it solves: most candidates copy-paste generic answers into job appli
 
 ## What makes it different from a generic LLM prompt
 
-A generic "write me a cover letter" prompt has no grounding — it fabricates specifics or stays vague. JobPrep retrieves actual content from the candidate's documents before generating, so answers reference real projects, real metrics, and real experience. The candidate reviews and edits, not rewrites from scratch.
+A generic "write me a cover letter" prompt has no grounding; it fabricates specifics or stays vague. JobPrep retrieves actual content from the candidate's documents before generating, so answers reference real projects, real metrics, and real experience. The candidate reviews and edits, not rewrites from scratch.
 
 ## Iterations
 
